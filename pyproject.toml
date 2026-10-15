@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "flights-converter"
+version = "0.1.0"
+description = "Streaming, privacy-filtered conversion of adsb.lol readsb trace archives"
+readme = "README.md"
+requires-python = ">=3.12"
+license = {file = "LICENSE"}
+authors = [{name = "Qourat"}]
+dependencies = []
+
+[project.optional-dependencies]
+test = ["pytest>=8", "ruff>=0.9"]
+
+[project.scripts]
+flights-convert = "flights_converter.cli:main"
+
+[project.urls]
+Repository = "https://github.com/Qourat/flights-converter"
+
+[tool.setuptools.packages.find]
+include = ["flights_converter*"]
+
+[tool.setuptools.package-data]
+flights_converter = ["operators.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

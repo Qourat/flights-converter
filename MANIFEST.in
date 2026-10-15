@@ -1,0 +1,4 @@
+include LICENSE README.md
+include docs/method.md docs/review-2026-10.md
+recursive-include tests *.py *.json
+global-exclude .*.md

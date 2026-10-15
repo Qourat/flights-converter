@@ -1,0 +1,14 @@
+[
+  {"icao":"f00004","r":"SENT-PIA","flight":"TST9004","dbFlags":4,"ownOp":"OWNER-PIA-SENTINEL"},
+  {"icao":"f00008","r":"SENT-LADD","flight":"TST9008","dbFlags":8,"ownOp":"OWNER-LADD-SENTINEL"},
+  {"icao":"f00005","r":"SENT-MPIA","flight":"TST9005","dbFlags":5,"ownOp":"OWNER-MPIA-SENTINEL"},
+  {"icao":"f00009","r":"SENT-MLADD","flight":"TST9009","dbFlags":9,"ownOp":"OWNER-MLADD-SENTINEL"},
+  {"icao":"f0000c","r":"SENT-BOTH","flight":"TST9012","dbFlags":12,"ownOp":"OWNER-BOTH-SENTINEL"},
+  {"icao":"f0000d","r":"SENT-MBOTH","flight":"TST9013","dbFlags":13,"ownOp":"OWNER-MBOTH-SENTINEL"},
+  {"icao":"~f00001","r":"SENT-NONICAO","flight":"TST9001","dbFlags":1,"ownOp":"OWNER-NONICAO-SENTINEL"},
+  {"icao":"f00000","r":"SENT-PRIVATE","flight":"PRIVATE77","dbFlags":0,"ownOp":"OWNER-PRIVATE-SENTINEL"},
+  {"icao":"f00002","r":"SENT-INTEREST","flight":"PRIVATE88","dbFlags":2,"ownOp":"OWNER-INTEREST-SENTINEL"},
+  {"icao":"f00010","r":"SENT-UNKNOWN","flight":"TST9016","dbFlags":16,"ownOp":"OWNER-UNKNOWN-SENTINEL"},
+  {"icao":"f00011","r":"SENT-NOFLAGS","flight":"TST9017","dbFlags":null,"ownOp":"OWNER-NOFLAGS-SENTINEL"},
+  {"icao":"f00012","r":"SENT-OPTOUT","flight":"TST9018","dbFlags":1,"ownOp":"OWNER-OPTOUT-SENTINEL"}
+]

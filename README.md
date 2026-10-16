@@ -4,6 +4,10 @@
 privacy-filtered flight segments and anonymous airport counts. Python 3.12+,
 stdlib only at runtime. The converter performs no network requests.
 
+Version **0.1.1** accepts ACAS/TCAS advisory members (`acas/*.csv.gz`) in prod-0
+releases by skipping them without parsing. Trace parsing and privacy filtering
+are unchanged. See the [changelog](CHANGELOG.md).
+
 ## Run
 
 ```sh
@@ -126,8 +130,9 @@ finally:
 
 `stage(record)` receives sanitised candidate dictionaries. Record types are
 `eligible_segment`, `airport_piece`, `diagnostics`, and `manifest_summary`.
-The summary includes input bytes, member/aircraft/duplicate counts, errors,
-24 distinct-aircraft UTC-hour populations counted **before** privacy filtering,
+The summary includes input bytes, member/aircraft/duplicate counts,
+`skipped_members` and `skipped_bytes`, errors, 24 distinct-aircraft UTC-hour
+populations counted **before** privacy filtering,
 method/policy versions and continuity flags. No identity-level audit data leaves
 RAM for aggregate-only aircraft.
 
@@ -194,8 +199,20 @@ that half-open day; a path date alone is insufficient. Supported point rows have
 14 fields or 15 with a discarded receiver field. The documented unversioned
 layout and schema-compatible `readsb 3.x.y [commit]` versions are accepted;
 other versions/shapes reject the release. Trace files may end in `.json` while
-their contents are gzip. Replay heatmap members and README/licence metadata are
-streamed away; unknown files, links, unsafe paths and corrupt archives fail.
+their contents are gzip.
+
+The explicit non-trace allowlist lives in `NON_TRACE_MEMBER_PATTERNS` in
+[`flights_converter/trace.py`](flights_converter/trace.py). It permits direct
+`acas/*.csv.gz` files (ACAS/TCAS advisories), the existing `heatmap` family, and
+metadata named `README`, `README.txt`, `README.md`, `LICENSE`, `LICENSE-ODbL.txt`
+or `LICENSE-CC0.txt`. Release directory prefixes are permitted; nested files
+under `acas/` and other ACAS extensions are not allowlisted. These payloads are
+discarded without decompression or parsing, under the existing archive/member
+limits. `skipped_members` counts these regular files; `skipped_bytes` sums their
+stored payload sizes (compressed bytes for `.gz`), excluding tar headers and
+padding. Both counters start at zero and expose no member names or contents.
+Directory entries are validated but do not increment the skip counters. Unknown
+files, links, unsafe paths and corrupt archives still fail.
 Tar validation requires two zero end blocks and only block-aligned zero padding
 through EOF. A member may cross any asset boundary.
 

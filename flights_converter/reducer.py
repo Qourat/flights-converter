@@ -63,6 +63,8 @@ class Reducer:
             "day": day.isoformat(),
             "input_bytes": 0,
             "n_members": 0,
+            "skipped_members": 0,
+            "skipped_bytes": 0,
             "n_aircraft": 0,
             "hour_aircraft": [0] * 24,
             "parse_errors": 0,

@@ -71,6 +71,10 @@ def test_gzip_integrity(reducer, day, kind):
     [
         ("/secret-sentinel", tarfile.REGTYPE),
         ("../secret-sentinel", tarfile.REGTYPE),
+        ("../acas/secret-sentinel.csv.gz", tarfile.REGTYPE),
+        ("acas/../secret-sentinel.csv.gz", tarfile.REGTYPE),
+        ("acas/secret-sentinel.csv.gz", tarfile.SYMTYPE),
+        ("acas/secret-sentinel.csv.gz", tarfile.LNKTYPE),
         ("traces/link", tarfile.SYMTYPE),
         ("traces/link", tarfile.LNKTYPE),
         ("device", tarfile.CHRTYPE),
@@ -128,12 +132,15 @@ def test_malformed_trace(reducer, day, mutation, code):
     assert summary["date_errors"] == int(code.endswith("date"))
 
 
-def test_metadata_and_heatmap_are_streamed_away(reducer, day):
+@pytest.mark.parametrize("name", ["heatmap/00.bin.ttf", "README"])
+def test_metadata_and_heatmap_are_streamed_away(reducer, day, name):
     data = b"SENTINEL" * 100000
-    info = tarfile.TarInfo("heatmap/00.bin.ttf")
+    info = tarfile.TarInfo(name)
     info.size = len(data)
     records, summary = consume(reducer, day, data=archive([body(day)], members=[(info, data)]))
     assert summary["n_members"] == 2
+    assert summary["skipped_members"] == 1
+    assert summary["skipped_bytes"] == len(data)
     assert "SENTINEL" not in json.dumps(records)
 
 

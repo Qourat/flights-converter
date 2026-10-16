@@ -19,13 +19,21 @@ assessment, or promotion fails. A complete parse alone establishes no source
 coverage. `close()` discards all boundary state. `break_continuity()` is the
 explicit missing/rejected-release hook.
 
-The summary contains `day`, `input_bytes`, `n_members`, `n_aircraft`, 24 UTC
-`hour_aircraft` integers, `parse_errors`, `date_errors`, `duplicate_members`,
+The summary contains `day`, `input_bytes`, `n_members`, `skipped_members`,
+`skipped_bytes`, `n_aircraft`, 24 UTC `hour_aircraft` integers, `parse_errors`,
+`date_errors`, `duplicate_members`,
 `method_version`, plus policy version and continuity indicators.
 Hourly populations include every parsed identity before classification. Only
 their totals leave memory. Member hashes and per-identity masks are transient.
 No input or per-aircraft fingerprint is included in receipts. Digest checks in
 `JoinedParts` remain available for transfer verification.
+
+Non-trace members are skipped only if matched by the explicit
+[`NON_TRACE_MEMBER_PATTERNS` allowlist](../flights_converter/trace.py).
+`skipped_members` counts fully discarded regular members and `skipped_bytes`
+sums their stored payload bytes, excluding tar headers and padding. No skipped
+member names or contents are emitted, decompressed or parsed. Path, type, size
+and archive integrity checks still apply; unknown members reject the release.
 
 The CLI accepts stdin or ordered local part paths. JSONL has one record per line.
 CSV has `record_type,record` columns, with a JSON object in `record`; this preserves

@@ -25,7 +25,14 @@ MAX_PADDING = 1024 * 1024
 MAX_MEMBERS = 1_000_000
 MAX_AIRCRAFT = 500_000
 TRACE_NAME = re.compile(r"(?:^|/)traces/([0-9a-f]{2})/trace_full_(~?[0-9a-f]{6})\.json(?:\.gz)?$")
-METADATA = {"README", "README.txt", "README.md", "LICENSE", "LICENSE-ODbL.txt", "LICENSE-CC0.txt"}
+# The complete non-trace allowlist. Match only after path/type validation;
+# release directory prefixes are permitted, as they are for trace members.
+# Payloads are discarded in bounded chunks, never decompressed or parsed.
+NON_TRACE_MEMBER_PATTERNS = (
+    re.compile(r"(?:^|/)acas/[^/]+\.csv\.gz\Z"),  # Direct ACAS/TCAS advisory files only.
+    re.compile(r"(?:^|/)heatmap(?:/|\Z)"),  # Existing replay heatmap family.
+    re.compile(r"(?:^|/)(?:README(?:\.txt|\.md)?|LICENSE(?:-ODbL\.txt|-CC0\.txt)?)\Z"),
+)
 
 
 def number(value) -> bool:
@@ -191,10 +198,12 @@ def archive_members(reader: BoundedReader, day: date, stats: dict):
             payload = reader.exact(info.size)
             reader.discard(-info.size % 512)
             yield match[2], payload
-        elif "heatmap" in PurePosixPath(name).parts or PurePosixPath(name).name in METADATA:
+        elif any(pattern.search(name) for pattern in NON_TRACE_MEMBER_PATTERNS):
             if info.size > MAX_AUXILIARY:
                 raise DataRejected("member_size")
             reader.discard(info.size + (-info.size % 512))
+            stats["skipped_members"] += 1
+            stats["skipped_bytes"] += info.size
         else:
             raise DataRejected("unexpected_tar_member")
 

@@ -274,6 +274,8 @@ def test_receipt_and_diagnostic_fields_are_closed_aggregate_schemas(reducer, day
         "day",
         "input_bytes",
         "n_members",
+        "skipped_members",
+        "skipped_bytes",
         "n_aircraft",
         "hour_aircraft",
         "parse_errors",
@@ -381,6 +383,7 @@ def test_deflate_failure_is_sanitised_in_library_and_cli(reducer, day, tmp_path,
     [
         ("heatmap/ignored", "MAX_AUXILIARY"),
         ("README", "MAX_AUXILIARY"),
+        ("acas/ignored.csv.gz", "MAX_AUXILIARY"),
         ("traces/ad/trace_full_e7dead.json", "MAX_COMPRESSED"),
     ],
 )

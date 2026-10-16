@@ -29,9 +29,11 @@ TRACE_NAME = re.compile(r"(?:^|/)traces/([0-9a-f]{2})/trace_full_(~?[0-9a-f]{6})
 # release directory prefixes are permitted, as they are for trace members.
 # Payloads are discarded in bounded chunks, never decompressed or parsed.
 NON_TRACE_MEMBER_PATTERNS = (
-    re.compile(r"(?:^|/)acas/[^/]+\.csv\.gz\Z"),  # Direct ACAS/TCAS advisory files only.
+    # Direct ACAS/TCAS advisory files only (real releases ship acas/acas.csv.gz + acas.json.gz).
+    re.compile(r"(?:^|/)acas/[^/]+\.(?:csv|json)\.gz\Z"),
     re.compile(r"(?:^|/)heatmap(?:/|\Z)"),  # Existing replay heatmap family.
-    re.compile(r"(?:^|/)(?:README(?:\.txt|\.md)?|LICENSE(?:-ODbL\.txt|-CC0\.txt)?)\Z"),
+    # Real releases name the licence files LICENSE-ODbL.txt and LICENSE-cc0.txt.
+    re.compile(r"(?:^|/)(?:README(?:\.txt|\.md)?|LICENSE(?:-ODbL\.txt|-(?:CC0|cc0)\.txt)?)\Z"),
 )
 
 

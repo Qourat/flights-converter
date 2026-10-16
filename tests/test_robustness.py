@@ -92,12 +92,9 @@ def create_synthetic_archive(day, num_aircraft=10):
             body(
                 day,
                 identity=identity,
-                callsign=f"TST{100+i}",
+                callsign=f"TST{100 + i}",
                 flags=0,
-                rows=[
-                    point(j * 30, "ground" if j < 2 else 1000 + j * 100)
-                    for j in range(6)
-                ],
+                rows=[point(j * 30, "ground" if j < 2 else 1000 + j * 100) for j in range(6)],
             )
         )
     return archive(bodies)
@@ -247,9 +244,7 @@ class TestMalformedJSON:
         for _ in range(40):  # Exceeds MAX_JSON_DEPTH of 32
             nested = {"nested": nested}
 
-        compressed = gzip.compress(
-            json.dumps(nested, separators=(",", ":")).encode(), mtime=0
-        )
+        compressed = gzip.compress(json.dumps(nested, separators=(",", ":")).encode(), mtime=0)
         info = tarfile.TarInfo(member_name(value))
         info.size = len(compressed)
 
@@ -401,9 +396,7 @@ class TestCLIRobustness:
 class TestPrivacySentinelLeakage:
     """Verify privacy sentinels never leak in any error condition."""
 
-    def test_no_sentinels_in_truncated_archive_errors(
-        self, airports, policy, day, privacy_cases
-    ):
+    def test_no_sentinels_in_truncated_archive_errors(self, airports, policy, day, privacy_cases):
         """Privacy sentinels don't leak when archive is truncated."""
         values = []
         for case in privacy_cases:
@@ -463,9 +456,7 @@ class TestPrivacySentinelLeakage:
         reducer = Reducer(airports, policy)
         records = []
         try:
-            reducer.consume(
-                day, io.BytesIO(archive(members=[(info, compressed)])), records.append
-            )
+            reducer.consume(day, io.BytesIO(archive(members=[(info, compressed)])), records.append)
         except (DataRejected, OSError) as e:
             error_str = str(e) + json.dumps(records)
             for sentinel in PRIVACY_SENTINELS:
@@ -487,7 +478,7 @@ class TestMemoryBounds:
                 body(
                     day,
                     identity=identity,
-                    callsign=f"TST{1000+i}",
+                    callsign=f"TST{1000 + i}",
                     flags=0,
                     rows=[point(j * 30, 1000 + j * 100) for j in range(100)],
                 )

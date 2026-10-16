@@ -6,7 +6,7 @@ from .privacy import OperatorPolicy
 from .reducer import Reducer
 from .trace import JoinedParts
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 __all__ = [
     "Airport",
     "DataRejected",

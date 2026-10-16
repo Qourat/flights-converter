@@ -108,7 +108,7 @@ def test_acas_discard_uses_bounded_non_seekable_reads(reducer, day):
     "name",
     [
         "acas/advisory.csv",
-        "acas/advisory.json.gz",
+        "acas/advisory.json",
         "acas/nested/advisory.csv.gz",
         "acas/advisory.csv.gz.extra",
         "acas/advisory.csv.gz\n",
@@ -144,7 +144,7 @@ def test_unknown_member_after_acas_discards_cli_output(tmp_path, policy, day):
         [body(day)],
         members=[
             member("acas/known.csv.gz", b"SKIPPED-CONTENT-SENTINEL"),
-            member("acas/UNKNOWN-NAME-SENTINEL.json.gz", b"UNKNOWN-CONTENT-SENTINEL"),
+            member("unknown/UNKNOWN-NAME-SENTINEL.json.gz", b"UNKNOWN-CONTENT-SENTINEL"),
         ],
     )
     result = run(configs(tmp_path, policy), data)
@@ -173,3 +173,24 @@ def test_acas_without_traces_still_rejects(reducer, day):
     data = archive(members=[member("acas/empty.csv.gz", b"")])
     with pytest.raises(DataRejected, match="^no_traces$"):
         consume(reducer, day, data=data)
+
+
+@pytest.mark.parametrize("prefix", ["", "./"])
+def test_real_release_layout_is_accepted(reducer, day, prefix):
+    """Real v2026.10.15 prod-0 layout: ./ prefixes, ACAS csv+json, lowercase cc0, ~ non-ICAO ids."""
+    icao, non_icao = body(day), body(day, identity="~f0abce")
+    data = archive(
+        members=[
+            member(prefix + "LICENSE-ODbL.txt", b"LICENCE-SENTINEL"),
+            member(prefix + "acas/acas.csv.gz", b"CSV-SENTINEL"),
+            member(prefix + "acas/acas.json.gz", b"JSON-SENTINEL"),
+            member(prefix + "LICENSE-cc0.txt", b"LICENCE-SENTINEL"),
+            member(prefix + "README.txt", b"README-SENTINEL"),
+            member(prefix + member_name(icao), payload(icao)),
+            member(prefix + member_name(non_icao), payload(non_icao)),
+        ]
+    )
+    records = []
+    summary = reducer.consume(day, io.BytesIO(data), records.append)
+    assert summary["parse_complete"] and summary["skipped_members"] == 5
+    assert "SENTINEL" not in json.dumps(records)

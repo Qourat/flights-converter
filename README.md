@@ -4,7 +4,7 @@
 privacy-filtered flight segments and anonymous airport counts. Python 3.12+,
 stdlib only at runtime. The converter performs no network requests.
 
-Version **0.1.1** accepts ACAS/TCAS advisory members (`acas/*.csv.gz`) in prod-0
+Version **0.1.2** accepts ACAS/TCAS advisory members (`acas/*.csv.gz`, `acas/*.json.gz`) in prod-0
 releases by skipping them without parsing. Trace parsing and privacy filtering
 are unchanged. See the [changelog](CHANGELOG.md).
 

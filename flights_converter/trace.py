@@ -242,6 +242,21 @@ class Trace:
     flags: object
     callsigns: set[str]
     points: list[Point]
+    # Tolerated readsb quirks seen in real prod-0 releases (counted, never invented):
+    duplicate_points: int = 0  # rows repeating the previous timestamp; the first row is kept
+    invalid_callsigns: int = 0  # malformed callsign strings; treated as unknown
+    invalid_identifiers: int = 0  # malformed registration/type strings (e.g. "12+34"); unknown
+    out_of_day_points: int = 0  # rows within 60 seconds outside the UTC day; dropped
+
+
+def readsb_callsign(value):
+    """Treat malformed strings as unknown; non-string values remain schema errors."""
+    try:
+        return identifier(value, r"[A-Z0-9-]{1,16}"), False
+    except DataRejected:
+        if not isinstance(value, str):
+            raise
+        return None, True
 
 
 def identifier(value, pattern):
@@ -313,22 +328,30 @@ def decode_trace(payload: bytes, identity: str, day: date) -> Trace:
     if not number(base) or not isinstance(rows, list):
         raise DataRejected("trace_schema")
     start = datetime.combine(day, datetime.min.time(), UTC).timestamp()
-    if not start <= base < start + 86400:
+    end = start + 86400
+    if not start <= base < end:
         raise DataRejected("body_date", date_error=True)
     points, callsigns = [], set()
     current_callsign = None
     unclassified_air = False
     last = -math.inf
+    duplicate_points = invalid_callsigns = out_of_day_points = 0
     for row in rows:
         if not isinstance(row, list) or len(row) not in (14, 15):
             raise DataRejected("point_schema")
         if not number(row[0]) or type(row[6]) is not int or row[6] < 0 or row[6] & ~15:
             raise DataRejected("point_schema")
         ts = base + row[0]
-        if not start <= ts < start + 86400:
+        if not start <= ts < end:
+            if start - 60 <= ts <= end + 60:
+                out_of_day_points += 1
+                continue
             raise DataRejected("point_date", date_error=True)
-        if ts <= last:
+        if ts < last:
             raise DataRejected("point_order")
+        # readsb repeats some timestamps (17% of traces on 2026-10-15); keep the first point.
+        duplicate = ts == last
+        duplicate_points += duplicate
         last = ts
         lat, lon, alt, flags = row[1], row[2], row[3], row[6]
         if lat is not None and (not number(lat) or not -90 <= lat <= 90):
@@ -343,13 +366,16 @@ def decode_trace(payload: bytes, identity: str, day: date) -> Trace:
         if extra is not None and not isinstance(extra, dict):
             raise DataRejected("point_details")
         if extra is not None and "flight" in extra:
-            callsign = identifier(extra["flight"], r"[A-Z0-9-]{1,16}")
+            callsign, invalid = readsb_callsign(extra["flight"])
+            invalid_callsigns += invalid
             current_callsign = callsign
             # An explicit clear must prevent inheritance, unlike an omitted
             # metadata snapshot. The empty marker cannot match an operator.
             callsigns.add(callsign or "")
         if number(alt) and not flags & 1 and lat is not None and lon is not None:
             unclassified_air |= current_callsign is None
+        if duplicate:
+            continue
         points.append(
             Point(
                 ts,
@@ -364,11 +390,25 @@ def decode_trace(payload: bytes, identity: str, day: date) -> Trace:
     if callsigns and unclassified_air:
         # A later positive callsign cannot classify earlier unknown movements.
         callsigns.add("")
+    invalid_identifiers = 0
+    known = {}
+    for key, pattern in (("r", r"[A-Z0-9-]{1,16}"), ("t", r"[A-Z0-9]{1,8}")):
+        try:
+            known[key] = identifier(body.get(key), pattern)
+        except DataRejected:
+            # Non-string values stay schema errors; malformed strings are unknown, never guessed.
+            if not isinstance(body.get(key), str):
+                raise
+            known[key], invalid_identifiers = None, invalid_identifiers + 1
     return Trace(
         identity,
-        identifier(body.get("r"), r"[A-Z0-9-]{1,16}"),
-        identifier(body.get("t"), r"[A-Z0-9]{1,8}"),
+        known["r"],
+        known["t"],
         body.get("dbFlags"),
         callsigns,
         points,
+        duplicate_points,
+        invalid_callsigns,
+        invalid_identifiers,
+        out_of_day_points,
     )

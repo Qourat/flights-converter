@@ -4,9 +4,12 @@
 privacy-filtered flight segments and anonymous airport counts. Python 3.12+,
 stdlib only at runtime. The converter performs no network requests.
 
-Version **0.1.2** accepts ACAS/TCAS advisory members (`acas/*.csv.gz`, `acas/*.json.gz`) in prod-0
-releases by skipping them without parsing. Trace parsing and privacy filtering
-are unchanged. See the [changelog](CHANGELOG.md).
+Version **0.1.3** applies the lead decisions from a complete 39,550-trace scan of
+v2026.10.15 prod-0: points within 60 seconds outside the UTC day are dropped and
+counted, and malformed callsign strings are unknown and counted. Larger date
+offsets and non-string callsigns still reject. Repeated timestamps keep the
+first point; malformed registration/type strings are unknown. See the
+[changelog](CHANGELOG.md).
 
 ## Run
 
@@ -131,7 +134,8 @@ finally:
 `stage(record)` receives sanitised candidate dictionaries. Record types are
 `eligible_segment`, `airport_piece`, `diagnostics`, and `manifest_summary`.
 The summary includes input bytes, member/aircraft/duplicate counts,
-`skipped_members` and `skipped_bytes`, errors, 24 distinct-aircraft UTC-hour
+`skipped_members`, `skipped_bytes`, `duplicate_points`, `out_of_day_points`,
+`invalid_callsigns`, `invalid_identifiers`, errors, 24 distinct-aircraft UTC-hour
 populations counted **before** privacy filtering,
 method/policy versions and continuity flags. No identity-level audit data leaves
 RAM for aggregate-only aircraft.
@@ -194,8 +198,10 @@ The field layout follows readsb's
 [trace JSON documentation](https://github.com/wiedehopf/readsb/blob/dev/README-json.md#trace-jsons)
 and [`generateTraceJson` / `sprintTracePoint` writer](https://github.com/wiedehopf/readsb/blob/dev/json_out.c).
 The producer's [permanent-trace writer](https://github.com/wiedehopf/readsb/blob/dev/globe_index.c)
-uses a UTC-day interval. We validate the body timestamp and every offset against
-that half-open day; a path date alone is insufficient. Supported point rows have
+uses a UTC-day interval. The body timestamp must be within that half-open day;
+points up to 60 seconds outside it are dropped and counted in `out_of_day_points`,
+and points further outside reject with `point_date`. A path date alone is
+insufficient. Supported point rows have
 14 fields or 15 with a discarded receiver field. The documented unversioned
 layout and schema-compatible `readsb 3.x.y [commit]` versions are accepted;
 other versions/shapes reject the release. Trace files may end in `.json` while
@@ -216,9 +222,11 @@ files, links, unsafe paths and corrupt archives still fail.
 Tar validation requires two zero end blocks and only block-aligned zero padding
 through EOF. A member may cross any asset boundary.
 
-No release asset was downloaded, including range requests. Fixtures are
-synthetic and producer-shaped; they are not claimed to be captured real traces.
-The test suite does not certify real-release performance or real-flight sampling.
+The lead's complete v2026.10.15 prod-0 scan covered 39,550 traces; its remaining
+rejections were 4 traces with points at most 1 second after day end and 34 with
+malformed callsigns. Fixtures are synthetic and producer-shaped; no real trace
+is bundled. The test suite does not certify real-release performance or
+real-flight sampling.
 
 Software is [MIT licensed](LICENSE), copyright Qourat. The upstream database is
 licensed under [ODbL 1.0](https://opendatacommons.org/licenses/odbl/1-0/): credit

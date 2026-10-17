@@ -20,7 +20,8 @@ coverage. `close()` discards all boundary state. `break_continuity()` is the
 explicit missing/rejected-release hook.
 
 The summary contains `day`, `input_bytes`, `n_members`, `skipped_members`,
-`skipped_bytes`, `n_aircraft`, 24 UTC `hour_aircraft` integers, `parse_errors`,
+`skipped_bytes`, `duplicate_points`, `out_of_day_points`, `invalid_callsigns`,
+`invalid_identifiers`, `n_aircraft`, 24 UTC `hour_aircraft` integers, `parse_errors`,
 `date_errors`, `duplicate_members`,
 `method_version`, plus policy version and continuity indicators.
 Hourly populations include every parsed identity before classification. Only
@@ -34,6 +35,27 @@ Non-trace members are skipped only if matched by the explicit
 sums their stored payload bytes, excluding tar headers and padding. No skipped
 member names or contents are emitted, decompressed or parsed. Path, type, size
 and archive integrity checks still apply; unknown members reject the release.
+
+The body timestamp must lie within `[day start, day end)` in UTC.
+`out_of_day_points` counts rows outside that interval but no more than 60 seconds
+before day start or after day end (including exactly 60 seconds). These rows are
+dropped before classification, hourly populations or movement processing; their
+callsign metadata is also ignored. Points further outside reject the release
+with `point_date` and a date error. Day end itself is outside the half-open day.
+
+`duplicate_points` counts rows within the UTC day that repeat the previous such
+row's timestamp (readsb writes these; the first row's point is kept and later
+ones are dropped). A timestamp going backwards among these rows still rejects
+the release. `invalid_callsigns` counts malformed callsign strings: after
+stripping surrounding whitespace and uppercasing, characters outside `[A-Z0-9-]`
+or length greater than 16 make a callsign unknown. This includes readsb's `@`
+fill, inner spaces, `AB.123`, `A/B` and `ABCDEFGHIJKLMNOPQ`. Such values are never
+used for operator classification. Blank strings and null remain unknown without
+incrementing this counter; non-string, non-null values still reject with
+`identity_format`. Non-null point details that are not objects still reject with
+`point_details`.
+`invalid_identifiers` counts malformed registration or type strings (for example
+`12+34`), which are treated as unknown; opt-outs by hex address still apply.
 
 The CLI accepts stdin or ordered local part paths. JSONL has one record per line.
 CSV has `record_type,record` columns, with a JSON object in `record`; this preserves
@@ -158,8 +180,11 @@ selection of its scheduled-airport cohort from common complete days.
 
 Public source links, retrieval date and the inspected asset names are in the
 [README](../README.md). Fixtures are synthetic, shaped against readsb's documented
-trace and writer; no real trace is bundled. No archive asset was downloaded or
-range-probed. Unit tests do not establish real-release throughput, an eight-week
+trace and writer; no real trace is bundled. The lead's complete v2026.10.15
+prod-0 scan covered 39,550 traces. The remaining failures were 4 `point_date`
+traces with points at most 1 second after day end and 34 `identity_format` traces
+with malformed callsigns; the 2026-10-16 decisions above address these cases.
+Unit tests do not establish real-release throughput, an eight-week
 quality audit, ten sampled real flights, or five sampled real overnight flights.
 Those integration gates must be measured before publishing derived data.
 

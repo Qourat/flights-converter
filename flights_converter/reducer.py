@@ -65,6 +65,10 @@ class Reducer:
             "n_members": 0,
             "skipped_members": 0,
             "skipped_bytes": 0,
+            "duplicate_points": 0,
+            "out_of_day_points": 0,
+            "invalid_callsigns": 0,
+            "invalid_identifiers": 0,
             "n_aircraft": 0,
             "hour_aircraft": [0] * 24,
             "parse_errors": 0,
@@ -127,6 +131,10 @@ class Reducer:
                     raise DataRejected("aircraft_limit")
                 seen[identity] = digest
                 trace = decode_trace(payload, identity, day)
+                stats["duplicate_points"] += trace.duplicate_points
+                stats["out_of_day_points"] += trace.out_of_day_points
+                stats["invalid_callsigns"] += trace.invalid_callsigns
+                stats["invalid_identifiers"] += trace.invalid_identifiers
                 mask = 0
                 for point in trace.points:
                     hour = int((point.ts - start) // 3600)

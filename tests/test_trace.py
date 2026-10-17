@@ -6,7 +6,7 @@ import tarfile
 import pytest
 
 from flights_converter import DataRejected, JoinedParts
-from flights_converter.trace import ordered_part_paths
+from flights_converter.trace import decode_trace, ordered_part_paths
 
 from .conftest import archive, body, consume, member_name, payload, point
 
@@ -106,7 +106,7 @@ def test_duplicates_identical_only(reducer, day):
     "mutation,code",
     [
         (lambda v: v.update(timestamp=v["timestamp"] + 86400), "body_date"),
-        (lambda v: v["trace"].append(point(86400)), "point_date"),
+        (lambda v: v["trace"].append(point(86461)), "point_date"),
         (lambda v: v.update(version="readsb 99.0.0 abcdef0"), "trace_version"),
         (lambda v: v.update(version=2), "trace_version"),
         (lambda v: v.update(icao="f0ffff"), "trace_identity"),
@@ -114,7 +114,10 @@ def test_duplicates_identical_only(reducer, day):
         (lambda v: v["trace"][0].__setitem__(6, 16), "point_schema"),
         (lambda v: v["trace"][0].__setitem__(1, float("nan")), "point_position"),
         (lambda v: v["trace"][0].__setitem__(2, 181), "point_position"),
-        (lambda v: v["trace"][1].__setitem__(0, 0), "point_order"),
+        (
+            lambda v: v["trace"][2].__setitem__(0, 10),
+            "point_order",
+        ),  # backwards; equal is tolerated
     ],
 )
 def test_malformed_trace(reducer, day, mutation, code):
@@ -193,3 +196,108 @@ def test_duplicate_json_keys_rejected(reducer, day):
     info.size = len(data)
     with pytest.raises(DataRejected, match="duplicate_json_key"):
         consume(reducer, day, data=archive(members=[(info, data)]))
+
+
+def test_repeated_timestamp_keeps_first_point_and_counts(day):
+    value = body(day)
+    value["trace"].insert(2, list(value["trace"][1]))
+    value["trace"][2][1] = 1.0  # a different position at the same timestamp must not be used
+    trace = decode_trace(payload(value), value["icao"], day)
+    assert trace.duplicate_points == 1
+    assert [p.ts for p in trace.points] == sorted({p.ts for p in trace.points})
+    assert all(p.lat != 1.0 for p in trace.points)
+
+
+@pytest.mark.parametrize("second", [-60, -0.5, 86400, 86400.5, 86460])
+def test_points_within_60_seconds_outside_day_are_dropped_and_counted(reducer, day, second):
+    value = body(day)
+    original_points = list(value["trace"])
+    value["trace"].insert(
+        0 if second < 0 else len(value["trace"]), point(second, callsign="OTHER1")
+    )
+    trace = decode_trace(payload(value), value["icao"], day)
+    assert trace.out_of_day_points == 1
+    assert [p.ts - value["timestamp"] for p in trace.points] == [p[0] for p in original_points]
+    assert trace.callsigns == {"TST123"}
+    _, summary = consume(reducer, day, [value])
+    assert summary["out_of_day_points"] == 1
+    assert summary["parse_complete"]
+    assert summary["parse_errors"] == summary["date_errors"] == 0
+    assert summary["hour_aircraft"] == [1] + [0] * 23
+
+
+@pytest.mark.parametrize("second", [-61, 86461])
+def test_points_further_than_60_seconds_outside_day_still_reject(reducer, day, second):
+    value = body(day, rows=[point(second)])
+    records = []
+    with pytest.raises(DataRejected, match="^point_date$") as error:
+        reducer.consume(day, io.BytesIO(archive([value])), records.append)
+    assert error.value.date_error
+    summary = records[-1]
+    assert not summary["parse_complete"]
+    assert summary["date_errors"] == 1 and summary["parse_errors"] == 0
+    assert summary["out_of_day_points"] == 0
+    assert reducer._last_day is None
+
+
+@pytest.mark.parametrize("second", [0, 86399.5])
+def test_points_inside_half_open_day_are_kept(reducer, day, second):
+    value = body(day, rows=[point(second)])
+    trace = decode_trace(payload(value), value["icao"], day)
+    assert len(trace.points) == 1 and trace.out_of_day_points == 0
+    _, summary = consume(reducer, day, [value])
+    assert summary["out_of_day_points"] == 0
+    assert sum(summary["hour_aircraft"]) == 1
+    assert summary["hour_aircraft"][int(second // 3600)] == 1
+
+
+@pytest.mark.parametrize(
+    "raw",
+    ["AB@@@@@@", "AB@12345", "AB 1234", "@@@@@@@@", "AB.123", "A/B", "ABCDEFGHIJKLMNOPQ"],
+)
+def test_malformed_callsign_strings_are_unknown_and_counted(reducer, day, raw):
+    value = body(day, callsign=raw)
+    trace = decode_trace(payload(value), value["icao"], day)
+    assert trace.invalid_callsigns == 1
+    assert trace.callsigns == {""}
+    records, summary = consume(reducer, day, [value])
+    assert summary["parse_complete"] and summary["invalid_callsigns"] == 1
+    assert summary["parse_errors"] == summary["date_errors"] == 0
+    assert not any(record["record_type"] == "eligible_segment" for record in records)
+
+
+@pytest.mark.parametrize("raw", ["TST123  ", "  tst123  ", "ABCDEFGHIJKLMNOP", "A-123"])
+def test_valid_callsign_strings_are_normalised(day, raw):
+    value = body(day, callsign=raw)
+    trace = decode_trace(payload(value), value["icao"], day)
+    assert trace.invalid_callsigns == 0 and trace.callsigns == {raw.strip().upper()}
+
+
+@pytest.mark.parametrize("raw", [1234, True, [], {}])
+def test_non_string_callsign_still_rejects(reducer, day, raw):
+    value = body(day)
+    value["trace"][0][8] = {"flight": raw}
+    records = []
+    with pytest.raises(DataRejected, match="^identity_format$") as error:
+        reducer.consume(day, io.BytesIO(archive([value])), records.append)
+    assert not error.value.date_error
+    summary = records[-1]
+    assert not summary["parse_complete"]
+    assert summary["parse_errors"] == 1 and summary["date_errors"] == 0
+
+
+@pytest.mark.parametrize("field,raw", [("r", "12+34"), ("t", "A3-20"), ("r", "AB@CD")])
+def test_malformed_registration_or_type_is_unknown_and_counted(day, field, raw):
+    value = body(day)
+    value[field] = raw
+    trace = decode_trace(payload(value), value["icao"], day)
+    assert trace.invalid_identifiers == 1
+    assert (trace.reg if field == "r" else trace.aircraft_type) is None
+
+
+@pytest.mark.parametrize("field", ["r", "t"])
+def test_non_string_registration_or_type_still_rejects(day, field):
+    value = body(day)
+    value[field] = 1234
+    with pytest.raises(DataRejected, match="identity_format"):
+        decode_trace(payload(value), value["icao"], day)
